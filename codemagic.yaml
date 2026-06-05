@@ -1,0 +1,39 @@
+workflows:
+  ios-build:
+    name: NotatkiApp iOS
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: skip
+    environment:
+      ios_signing:
+        distribution_type: ad_hoc
+      vars:
+        BUNDLE_ID: "com.notatki.app"
+        XCODE_SCHEME: "NotatkiApp"
+    scripts:
+      - name: Build iOS IPA
+        script: |
+          xcodebuild \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            -destination "generic/platform=iOS" \
+            clean build
+          mkdir -p Payload
+          cp -r DerivedData/Build/Products/Release-iphoneos/NotatkiApp.app Payload/
+          zip -r NotatkiApp.ipa Payload
+    artifacts:
+      - "*.ipa"
+    publishing:
+      email:
+        recipients:
+          - franlo.wojtera@outlook.com
+        notify:
+          success: true
+          failure: true
