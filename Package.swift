@@ -6,8 +6,7 @@ let package = Package(
     platforms: [.iOS(.v17)],
     targets: [
         .executableTarget(
-            name: "NotatkiApp",
-            path: "Sources/NotatkiApp"
+            name: "NotatkiApp"
         )
     ]
 )

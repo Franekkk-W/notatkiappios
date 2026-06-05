@@ -6,13 +6,19 @@ workflows:
     environment:
       xcode: latest
     scripts:
+      - name: Resolve dependencies
+        script: |
+          cd NotatkiApp
+          swift package resolve
+
       - name: Build iOS IPA (unsigned)
         script: |
+          cd NotatkiApp
           xcodebuild \
             -scheme "NotatkiApp" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath DerivedData \
+            -derivedDataPath ../DerivedData \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -20,9 +26,11 @@ workflows:
             -destination "generic/platform=iOS" \
             clean build
 
+          cd ..
           mkdir -p Payload
           cp -r DerivedData/Build/Products/Release-iphoneos/NotatkiApp.app Payload/
-          zip -r NotatkiApp.ipa Payload
+          zip -r NotatkiApp.ipa Payload/
+
     artifacts:
       - "*.ipa"
     publishing:
