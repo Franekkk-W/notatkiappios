@@ -3,7 +3,7 @@ import CryptoKit
 
 struct CryptoHelper {
 
-    // MARK: – Haszowanie hasla
+    // MARK: – Haszowanie hasla (SHA-256)
     static func hashPassword(_ password: String) -> String {
         let input = (password + "NP_SALT_2026").data(using: .utf8)!
         let hash  = SHA256.hash(data: input)
@@ -14,11 +14,26 @@ struct CryptoHelper {
         hashPassword(password) == hash
     }
 
+    // MARK: – Derywacja klucza AES z hasla (HKDF zamiast PBKDF2)
+    private static func deriveKey(from password: String) -> SymmetricKey {
+        let passwordData = password.data(using: .utf8)!
+        let salt = "NP_HKDF_SALT_2026".data(using: .utf8)!
+        let info = "NotatkiApp_AES_KEY".data(using: .utf8)!
+
+        // Uzywamy HKDF z SHA256 – dostepne w CryptoKit bez zadnych dodatkowych importow
+        let inputKey = SymmetricKey(data: SHA256.hash(data: passwordData + salt))
+        return HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: inputKey,
+            salt: salt,
+            info: info,
+            outputByteCount: 32
+        )
+    }
+
     // MARK: – AES-256-GCM szyfrowanie
     static func encrypt(_ data: Data, password: String) throws -> Data {
-        let key       = deriveKey(from: password)
-        let symKey    = SymmetricKey(data: key)
-        let sealed    = try AES.GCM.seal(data, using: symKey)
+        let key    = deriveKey(from: password)
+        let sealed = try AES.GCM.seal(data, using: key)
         guard let combined = sealed.combined else {
             throw CryptoError.encryptionFailed
         }
@@ -26,10 +41,9 @@ struct CryptoHelper {
     }
 
     static func decrypt(_ data: Data, password: String) throws -> Data {
-        let key    = deriveKey(from: password)
-        let symKey = SymmetricKey(data: key)
-        let box    = try AES.GCM.SealedBox(combined: data)
-        return try AES.GCM.open(box, using: symKey)
+        let key = deriveKey(from: password)
+        let box = try AES.GCM.SealedBox(combined: data)
+        return try AES.GCM.open(box, using: key)
     }
 
     static func encryptString(_ text: String, password: String) throws -> String {
@@ -46,30 +60,15 @@ struct CryptoHelper {
         return String(data: plain, encoding: .utf8) ?? ""
     }
 
-    // MARK: – Derywacja klucza PBKDF2
-    private static func deriveKey(from password: String) -> Data {
-        let passwordData = password.data(using: .utf8)!
-        let salt         = "NP_PBKDF2_SALT_2026".data(using: .utf8)!
-        var derivedKey   = Data(repeating: 0, count: 32)
-        derivedKey.withUnsafeMutableBytes { derivedPtr in
-            passwordData.withUnsafeBytes { passPtr in
-                salt.withUnsafeBytes { saltPtr in
-                    CCKeyDerivationPBKDF(
-                        CCPBKDFAlgorithm(kCCPBKDF2),
-                        passPtr.baseAddress, passwordData.count,
-                        saltPtr.baseAddress, salt.count,
-                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                        300_000,
-                        derivedPtr.baseAddress, 32
-                    )
-                }
-            }
-        }
-        return derivedKey
-    }
-
     enum CryptoError: Error {
         case encryptionFailed
         case invalidData
     }
+}
+
+// Operator do laczenia Data
+private func + (lhs: Data, rhs: Data) -> Data {
+    var result = lhs
+    result.append(rhs)
+    return result
 }
