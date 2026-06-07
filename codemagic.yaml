@@ -6,19 +6,13 @@ workflows:
     environment:
       xcode: latest
     scripts:
-      - name: Resolve dependencies
-        script: |
-          cd NotatkiApp
-          swift package resolve
-
       - name: Build iOS IPA (unsigned)
         script: |
-          cd NotatkiApp
           xcodebuild \
             -scheme "NotatkiApp" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath ../DerivedData \
+            -derivedDataPath DerivedData \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -26,10 +20,68 @@ workflows:
             -destination "generic/platform=iOS" \
             clean build
 
-          cd ..
+          # Pokaz co zostalo zbudowane
+          echo "=== Zawartosc DerivedData/Build/Products/Release-iphoneos ==="
+          ls -la DerivedData/Build/Products/Release-iphoneos/ || echo "Brak folderu"
+
+          # Stworz .app bundle recznie jesli nie ma
+          APP_PATH=$(find DerivedData/Build/Products/Release-iphoneos -name "*.app" | head -1)
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "Brak .app, tworze bundle recznie..."
+            mkdir -p DerivedData/Build/Products/Release-iphoneos/NotatkiApp.app
+            cp DerivedData/Build/Products/Release-iphoneos/NotatkiApp \
+               DerivedData/Build/Products/Release-iphoneos/NotatkiApp.app/NotatkiApp
+            
+            cat > DerivedData/Build/Products/Release-iphoneos/NotatkiApp.app/Info.plist << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>NotatkiApp</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.notatki.app</string>
+    <key>CFBundleName</key>
+    <string>Notatki</string>
+    <key>CFBundleDisplayName</key>
+    <string>Notatki</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>iPhoneOS</string>
+    </array>
+    <key>MinimumOSVersion</key>
+    <string>17.0</string>
+    <key>UILaunchScreen</key>
+    <dict/>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>arm64</string>
+    </array>
+</dict>
+</plist>
+PLIST
+            APP_PATH="DerivedData/Build/Products/Release-iphoneos/NotatkiApp.app"
+          fi
+
+          echo "APP_PATH: $APP_PATH"
           mkdir -p Payload
-          cp -r DerivedData/Build/Products/Release-iphoneos/NotatkiApp.app Payload/
+          cp -r "$APP_PATH" Payload/
           zip -r NotatkiApp.ipa Payload/
+          echo "=== IPA size ==="
+          ls -lh NotatkiApp.ipa
 
     artifacts:
       - "*.ipa"
